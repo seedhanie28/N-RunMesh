@@ -1,7 +1,17 @@
-# N-RunMesh
+<p align="center">
+  <img src="assets/nrunmesh-banner.svg" alt="N-RunMesh — Distributed Job Scheduler" width="100%">
+</p>
 
-N-RunMesh is a self-hosted controller and agent for scheduling jobs across
-multiple machines.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.2.0-10b981?style=flat-square" alt="Version 0.2.0">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-0ea5e9?style=flat-square" alt="Linux and Windows">
+  <img src="https://img.shields.io/badge/deployment-Docker-2496ed?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+  <img src="https://img.shields.io/badge/engine-signed%20%26%20compiled-14b8a6?style=flat-square" alt="Signed compiled engine">
+</p>
+
+<p align="center">
+  Self-hosted controller and secure agents for scheduling jobs across multiple machines.
+</p>
 
 ## Controller quick start
 
