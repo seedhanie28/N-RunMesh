@@ -1,0 +1,378 @@
+<ul>
+{% extends "layout.html" %}
+{% set ns = namespace(has_live=false) %}
+
+{% block title %}Runs{% endblock %}
+{% block breadcrumb %}Runs{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <div class="text-lg font-semibold text-slate-900">Runs</div>
+      <div class="text-xs text-slate-500">Monitor executions, view logs, and track runtime for running jobs.</div>
+    </div>
+
+    <form method="get" class="flex items-center gap-2">
+      <input
+        type="text"
+        name="job_id"
+        value="{{ job_id or '' }}"
+        placeholder="Filter job_id"
+        class="w-36 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-200"
+      />
+      <button class="rounded-xl bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">Filter</button>
+      {% if job_id %}
+        <a href="{{ url_for('runs') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Reset</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-600">
+          <tr>
+            <th class="text-left font-semibold px-4 py-3">Run</th>
+              <th>Name</th>
+              <th>Category</th>
+            <th class="text-left font-semibold px-4 py-3">Job</th>
+            <th class="text-left font-semibold px-4 py-3">Status</th>
+            <th class="text-left font-semibold px-4 py-3">Agent PID</th>
+            <th class="text-left font-semibold px-4 py-3">Run PID</th>
+            <th class="text-left font-semibold px-4 py-3">Triggered By</th>
+            <th class="text-left font-semibold px-4 py-3">Start</th>
+            <th class="text-left font-semibold px-4 py-3">End</th>
+            <th class="text-left font-semibold px-4 py-3">Runtime</th>
+            <th class="text-right font-semibold px-4 py-3">Action</th>
+          </tr>
+        </thead>
+        <tbody id="runsTbody" class="divide-y divide-slate-100">
+        {% for r, job_name, category in runs %}
+            {% set st = (r.status or '')|upper %}
+            {% if st in ['RUNNING','QUEUED'] %}{% set ns.has_live = true %}{% endif %}
+            <tr class="hover:bg-slate-50" data-run-status="{{ st }}">
+              <td class="px-4 py-3 text-slate-900 font-medium">#{{ r.id }}</td>
+                <td>{{ job_name }}</td>
+                <td>{{ category }}</td>
+              <td class="px-4 py-3 text-slate-700">{{ r.job_id }}</td>
+              <td class="px-4 py-3">
+                {% if st == 'RUNNING' %}
+                  <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    <span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    RUNNING
+                  </span>
+                {% elif st in ['SUCCESS', 'DONE', 'COMPLETED'] %}
+                  <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{{ st }}</span>
+                {% elif st in ['FAILED', 'ERROR'] %}
+                  <span class="inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">{{ st }}</span>
+                {% else %}
+                  <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ st or 'UNKNOWN' }}</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-slate-700">
+                {% set server = (r.job.server if r.job is defined and r.job else None) %}
+                {% if server and agents_map and agents_map.get(server) and agents_map.get(server).pid %}
+                  {{ agents_map.get(server).pid }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+
+              <td class="px-4 py-3 text-slate-700">
+                {{ r.process_pid or '-' }}
+              </td>
+              <td class="px-4 py-3 text-slate-700">
+                {{ (r.triggered_by or 'system') }}
+              </td>
+
+              <td class="px-4 py-3 text-slate-600">{% if r.start_time %}
+                  {{ to_local(r.start_time).strftime('%Y-%m-%d %H:%M:%S') }}
+              {% else %}
+                  -
+              {% endif %}</td>
+              <td class="px-4 py-3 text-slate-600">{% if r.end_time %}
+                  {{ to_local(r.end_time).strftime('%Y-%m-%d %H:%M:%S') }}
+              {% else %}
+                  -
+              {% endif %}</td>
+              <td class="px-4 py-3">
+                {% if r.start_time %}
+                  {% if st == 'RUNNING' %}
+                    <span class="font-mono text-slate-900" data-timer-start="{{ r.start_time.isoformat() }}Z">00:00:00</span>
+                  {% else %}
+                    <span class="font-mono text-slate-900" data-runtime-fixed
+                          data-start="{{ r.start_time.isoformat() }}Z"
+                          data-end="{{ (r.end_time.isoformat() + 'Z' if r.end_time else '') }}">--:--:--</span>
+                  {% endif %}
+                {% else %}-{% endif %}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  type="button"
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  onclick="openRunLog({{ r.id }}, '{{ st }}')"
+                >View log</button>
+
+                {% if current_user.role == 'admin' and st == 'RUNNING' %}
+                  <span class="mx-2 text-slate-300">|</span>
+                  <button class="text-amber-700 hover:text-amber-900 text-xs font-semibold"
+                          type="button"
+                          onclick="sendSignal({{ r.id }}, 'TERM')">SIGTERM</button>
+                  <span class="mx-1 text-slate-300">|</span>
+                  <button class="text-rose-700 hover:text-rose-900 text-xs font-semibold"
+                          type="button"
+                          onclick="sendSignal({{ r.id }}, 'KILL')">SIGKILL</button>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="12" class="px-4 py-10 text-center text-slate-500">No runs found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pagination %}
+      <div class="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200 text-sm">
+        <div class="text-slate-600">Page {{ pagination.page }} / {{ pagination.pages }}</div>
+        <div class="flex items-center gap-2">
+          {% if pagination.has_prev %}
+            <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50"
+               href="{{ url_for('runs', page=pagination.prev_num, job_id=job_id) }}">Prev</a>
+          {% else %}
+            <span class="rounded-xl border border-slate-200 bg-white/60 px-3 py-2 text-slate-400">Prev</span>
+          {% endif %}
+
+          {% if pagination.has_next %}
+            <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50"
+               href="{{ url_for('runs', page=pagination.next_num, job_id=job_id) }}">Next</a>
+          {% else %}
+            <span class="rounded-xl border border-slate-200 bg-white/60 px-3 py-2 text-slate-400">Next</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal: Terminal-like Log Viewer -->
+<div id="runLogModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50" onclick="closeRunLog()"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-5xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+        <div>
+          <div class="text-sm font-semibold text-slate-100" id="runLogTitle">Run log</div>
+          <div class="text-xs text-slate-400">Live tail while RUNNING, persisted log_history after finish.</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="runLogFollow" type="button" class="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700">Follow: ON</button>
+          <button type="button" class="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/20" onclick="closeRunLog()">Close</button>
+        </div>
+      </div>
+      <div class="px-4 py-3">
+        <pre id="runLogContent" class="h-[70vh] overflow-auto rounded-xl bg-black px-4 py-3 text-xs leading-relaxed text-slate-100 font-mono whitespace-pre-wrap"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let _runLogTimer = null;
+  let _runLogRunId = null;
+  let _runLogStatus = null;
+  let _follow = true;
+
+  function _formatHHMMSS(totalSeconds) {
+    totalSeconds = Math.max(0, Math.floor(totalSeconds));
+    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSeconds % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  function _parseISO(iso) {
+    return new Date(iso);
+  }
+
+  function _updateTimers() {
+    const now = new Date();
+
+    document.querySelectorAll('[data-timer-start]').forEach(el => {
+      const d = _parseISO(el.getAttribute('data-timer-start'));
+      if (!isNaN(d)) {
+        const diff = (now - d) / 1000;
+        el.textContent = _formatHHMMSS(diff);
+      }
+    });
+
+    document.querySelectorAll('[data-runtime-fixed]').forEach(el => {
+      const s = el.getAttribute('data-start');
+      const e = el.getAttribute('data-end');
+      if (!s || !e) return;
+      const ds = _parseISO(s);
+      const de = _parseISO(e);
+      if (!isNaN(ds) && !isNaN(de)) {
+        el.textContent = _formatHHMMSS((de - ds) / 1000);
+      }
+    });
+  }
+
+  setInterval(_updateTimers, 1000);
+  _updateTimers();
+
+  function openRunLog(runId, status) {
+    _runLogRunId = runId;
+    _runLogStatus = status || 'UNKNOWN';
+
+    document.getElementById('runLogTitle').textContent = `Run #${runId} — ${_runLogStatus}`;
+    document.getElementById('runLogModal').classList.remove('hidden');
+
+    const pre = document.getElementById('runLogContent');
+    pre.textContent = 'Loading...';
+
+    _fetchRunLogOnce(true);
+
+    // Always poll; _fetchRunLogOnce will auto-stop once status != RUNNING
+    if (_runLogTimer) clearInterval(_runLogTimer);
+    _runLogTimer = setInterval(() => _fetchRunLogOnce(false), 2000);
+  }
+
+  function closeRunLog() {
+    if (_runLogTimer) {
+      clearInterval(_runLogTimer);
+      _runLogTimer = null;
+    }
+    document.getElementById('runLogModal').classList.add('hidden');
+    _runLogRunId = null;
+    _runLogStatus = null;
+  }
+
+  async function _fetchRunLogOnce(forceScroll) {
+    if (!_runLogRunId) return;
+
+    const pre = document.getElementById('runLogContent');
+    const atBottom = (pre.scrollTop + pre.clientHeight + 40) >= pre.scrollHeight;
+
+    try {
+      const url = `/runs/${_runLogRunId}/log_text?tail=2000&_=${Date.now()}`;
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      let data = null;
+
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const txt = await res.text();
+        try { data = JSON.parse(txt); } catch (_) { data = { content: txt, status: _runLogStatus || '' }; }
+      }
+
+      const content = (data && typeof data.content === 'string') ? data.content : '';
+      const status = (data && typeof data.status === 'string') ? data.status.toUpperCase() : (_runLogStatus || '');
+
+      if (status) {
+        _runLogStatus = status;
+        document.getElementById('runLogTitle').textContent = `Run #${_runLogRunId} — ${status}`;
+      }
+
+      pre.textContent = content || '(empty log)';
+
+      // auto-stop polling when finished
+      if (status && status !== 'RUNNING') {
+        if (_runLogTimer) {
+          clearInterval(_runLogTimer);
+          _runLogTimer = null;
+        }
+      }
+
+      if (_follow && (forceScroll || atBottom)) {
+        pre.scrollTop = pre.scrollHeight;
+      }
+    } catch (e) {
+      pre.textContent = `Failed to load log: ${e}`;
+    }
+  }
+
+  (function () {
+    const btn = document.getElementById('runLogFollow');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      _follow = !_follow;
+      btn.textContent = _follow ? 'Follow: ON' : 'Follow: OFF';
+      if (_follow) {
+        const pre = document.getElementById('runLogContent');
+        pre.scrollTop = pre.scrollHeight;
+      }
+    });
+  })();
+</script>
+
+<script>
+async function sendSignal(runId, sig) {
+  try {
+    const resp = await fetch(`/runs/${runId}/signal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ signal: sig })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) {
+      alert(`Signal failed: ${data.error || resp.statusText}`);
+      return;
+    }
+    alert(`Signal ${sig} sent (pid=${data.pid || '-'})`);
+  } catch (e) {
+    alert(`Signal error: ${e}`);
+  }
+}
+</script>
+<script>
+  // Auto refresh table body while there are live runs (QUEUED/RUNNING)
+  {% if ns.has_live %}
+  async function _refreshRunsTable() {
+    // avoid refresh when log modal is open
+    const modal = document.getElementById('runLogModal');
+    if (modal && !modal.classList.contains('hidden')) return;
+
+    const tbody = document.getElementById('runsTbody');
+    if (!tbody) return;
+
+    try {
+      const url = window.location.pathname + window.location.search;
+      const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+      if (!res.ok) return;
+
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const newTbody = doc.getElementById('runsTbody');
+      if (!newTbody) return;
+
+      tbody.innerHTML = newTbody.innerHTML;
+
+      // re-run timers after DOM swap
+      try { _updateTimers(); } catch (e) {}
+
+      // stop refreshing if no more live statuses
+      const hasLive = !!document.querySelector('#runsTbody tr[data-run-status="RUNNING"], #runsTbody tr[data-run-status="QUEUED"]');
+      if (!hasLive && window._runsRefreshTimer) {
+        clearInterval(window._runsRefreshTimer);
+        window._runsRefreshTimer = null;
+      }
+
+    } catch (e) {
+      // ignore refresh errors
+    }
+  }
+
+  window._runsRefreshTimer = setInterval(_refreshRunsTable, 4000);
+  {% endif %}
+</script>
+{% endblock %}
+</ul>

@@ -1,0 +1,203 @@
+{% extends "layout.html" %}
+{% block title %}Settings · N-RunMesh{% endblock %}
+{% block breadcrumb %}Administration / Settings{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+  <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+    <h2 class="text-lg font-semibold text-slate-900">Timezone</h2>
+    <p class="text-sm text-slate-500 mt-1">Controls time display, cron evaluation, and automatic backup time.</p>
+    <form method="post" class="mt-5 flex gap-3">
+      <input type="hidden" name="action" value="timezone">
+      <div class="relative flex-1" data-timezone-combobox>
+        <input
+          type="text"
+          name="timezone"
+          value="{{ current_timezone }}"
+          autocomplete="off"
+          spellcheck="false"
+          required
+          aria-label="Search timezone"
+          aria-expanded="false"
+          class="w-full rounded-xl border border-slate-300 px-3 py-2.5 pr-10 text-sm"
+          placeholder="Search timezone, e.g. Asia/Jakarta"
+          data-timezone-input>
+        <button type="button" aria-label="Show timezone options" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-700" data-timezone-toggle>⌄</button>
+        <div class="hidden absolute z-30 mt-2 w-full max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" data-timezone-list>
+          {% for timezone in timezones %}
+            <button type="button" class="block w-full px-3 py-2 text-left text-sm hover:bg-brand-50 hover:text-brand-800" data-timezone-option="{{ timezone }}">{{ timezone }}</button>
+          {% endfor %}
+          <div class="hidden px-3 py-4 text-sm text-slate-500" data-timezone-empty>No timezone found.</div>
+        </div>
+      </div>
+      <button class="rounded-xl bg-brand-600 text-white px-4 py-2 text-sm font-semibold">Save</button>
+    </form>
+  </section>
+
+  <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Automatic backup</h2>
+        <p class="text-sm text-slate-500 mt-1">Daily PostgreSQL backup. Default schedule is 09:00.</p>
+      </div>
+      <span class="rounded-full px-3 py-1 text-xs font-semibold {% if auto_backup.enabled %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+        {{ 'Enabled' if auto_backup.enabled else 'Disabled' }}
+      </span>
+    </div>
+    <form method="post" class="mt-5 space-y-4">
+      <input type="hidden" name="action" value="auto_backup">
+      <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="auto_backup_enabled" value="1" {% if auto_backup.enabled %}checked{% endif %} class="rounded border-slate-300 text-brand-600">
+        <span><span class="block text-sm font-medium text-slate-800">Run backup automatically</span><span class="block text-xs text-slate-500">Executed by a dedicated backup worker.</span></span>
+      </label>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div><label class="text-xs font-medium text-slate-600">Daily time</label><input type="time" name="auto_backup_time" value="{{ auto_backup.time }}" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"></div>
+        <div><label class="text-xs font-medium text-slate-600">Storage subfolder</label><input name="auto_backup_directory" value="{{ auto_backup.directory }}" required placeholder="daily" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"></div>
+        <div><label class="text-xs font-medium text-slate-600">Retention days</label><input type="number" min="0" max="3650" name="auto_backup_retention_days" value="{{ auto_backup.retention_days }}" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"></div>
+      </div>
+      <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs text-slate-600">
+        Host storage: <code>{{ backup_host_path }}</code> · Container mount: <code>{{ backup_root }}/{{ auto_backup.directory }}</code><br>
+        Change the host location with <code>BACKUP_HOST_PATH</code> in <code>.env</code>, then recreate the stack.
+      </div>
+      {% if auto_backup.last_run %}
+        <div class="text-xs {% if auto_backup.last_status == 'success' %}text-emerald-700{% else %}text-rose-700{% endif %}">
+          Last run: {{ auto_backup.last_run }} · {{ auto_backup.last_status }}
+          {% if auto_backup.last_file %}· {{ auto_backup.last_file }}{% endif %}
+          {% if auto_backup.last_error %}<div class="mt-1">{{ auto_backup.last_error }}</div>{% endif %}
+        </div>
+      {% endif %}
+      <button class="rounded-xl bg-brand-600 text-white px-4 py-2.5 text-sm font-semibold">Save backup schedule</button>
+    </form>
+  </section>
+
+  <section class="xl:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
+      <div><h2 class="text-lg font-semibold text-slate-900">Saved backups</h2><p class="text-sm text-slate-500 mt-1">Create, download, or restore backups stored on the configured host folder.</p></div>
+      <div class="flex items-center gap-3">
+        <button type="submit" form="backupBulkForm" data-delete-selected class="hidden rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 text-sm font-semibold" onclick="return confirm('Delete all selected backup files permanently?')">Delete selected (<span data-selected-count>0</span>)</button>
+        <a href="{{ url_for('admin.backup_database') }}" class="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold">Backup now</a>
+      </div>
+    </div>
+    <form id="backupBulkForm" method="post" action="{{ url_for('admin.delete_stored_backups') }}"></form>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-600"><tr><th class="w-12 px-5 py-3"><input type="checkbox" data-backup-select-all aria-label="Select all backups" class="rounded border-slate-300 text-brand-600"></th><th class="text-left px-5 py-3">File</th><th class="text-left px-5 py-3">Created</th><th class="text-left px-5 py-3">Size</th><th class="text-right px-5 py-3">Actions</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+        {% for backup in backups %}
+          <tr>
+            <td class="px-5 py-3"><input type="checkbox" name="backup_paths" value="{{ backup.relative_path }}" form="backupBulkForm" data-backup-checkbox aria-label="Select {{ backup.name }}" class="rounded border-slate-300 text-brand-600"></td>
+            <td class="px-5 py-3"><div class="font-medium text-slate-800">{{ backup.name }}</div><div class="text-xs text-slate-400">{{ backup.relative_path }}</div></td>
+            <td class="px-5 py-3">{{ format_local(backup.modified_at) }}</td>
+            <td class="px-5 py-3">{{ '%.2f'|format(backup.size / 1048576) }} MB</td>
+            <td class="px-5 py-3 text-right whitespace-nowrap">
+              <a href="{{ url_for('admin.download_stored_backup', path=backup.relative_path) }}" class="text-brand-700">Download</a>
+              <form method="post" action="{{ url_for('admin.restore_stored_backup') }}" class="inline ml-4" onsubmit="return confirm('Restore this backup and replace current database objects?')">
+                <input type="hidden" name="path" value="{{ backup.relative_path }}">
+                <input type="hidden" name="confirmation" value="RESTORE">
+                <button class="text-rose-600">Restore</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="px-5 py-10 text-center text-slate-500">No stored backup yet. Automatic backup runs daily at {{ auto_backup.time }}.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{{ url_for('admin.restore_database') }}" enctype="multipart/form-data" class="border-t border-slate-200 px-6 py-5 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+      <div><label class="text-xs font-medium text-slate-600">Restore external backup</label><input type="file" name="backup_file" accept=".dump" required class="mt-2 block w-full text-sm"></div>
+      <input name="confirmation" placeholder="Type RESTORE to confirm" required class="rounded-xl border border-rose-300 px-3 py-2.5 text-sm">
+      <button class="rounded-xl bg-rose-600 text-white px-4 py-2.5 text-sm font-semibold" onclick="return confirm('Restore uploaded backup?')">Upload & restore</button>
+    </form>
+  </section>
+
+  <section class="xl:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+    <div class="flex items-start justify-between"><div><h2 class="text-lg font-semibold text-slate-900">Database connection</h2><p class="text-sm text-slate-500 mt-1">Test a PostgreSQL connection before applying it.</p></div>{% if has_pending_database %}<span class="rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-xs font-semibold">Pending restart</span>{% endif %}</div>
+    <form method="post" class="mt-5 grid grid-cols-1 md:grid-cols-5 gap-3">
+      <input name="db_host" value="{{ database.host }}" placeholder="Host" required class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><input name="db_port" value="{{ database.port }}" placeholder="Port" required class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><input name="db_name" value="{{ database.name }}" placeholder="Database" required class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><input name="db_user" value="{{ database.user }}" placeholder="User" required class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"><input name="db_password" type="password" placeholder="Password (current if blank)" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+      <div class="md:col-span-5 flex gap-3"><button name="action" value="test_database" class="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold">Test connection</button><button name="action" value="save_database" class="rounded-xl bg-brand-600 text-white px-4 py-2.5 text-sm font-semibold">Save pending connection</button></div>
+    </form>
+    <div class="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">After saving, copy the verified values to <code>.env</code>, then run <code>docker compose up -d --force-recreate</code>.</div>
+  </section>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const backupBoxes = [...document.querySelectorAll('[data-backup-checkbox]')];
+  const selectAll = document.querySelector('[data-backup-select-all]');
+  const deleteButton = document.querySelector('[data-delete-selected]');
+  const selectedCount = document.querySelector('[data-selected-count]');
+
+  function syncBackupSelection() {
+    const checked = backupBoxes.filter(box => box.checked).length;
+    if (selectedCount) selectedCount.textContent = checked;
+    if (deleteButton) deleteButton.classList.toggle('hidden', checked === 0);
+    if (selectAll) {
+      selectAll.checked = backupBoxes.length > 0 && checked === backupBoxes.length;
+      selectAll.indeterminate = checked > 0 && checked < backupBoxes.length;
+    }
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      backupBoxes.forEach(box => box.checked = selectAll.checked);
+      syncBackupSelection();
+    });
+  }
+  backupBoxes.forEach(box => box.addEventListener('change', syncBackupSelection));
+  syncBackupSelection();
+
+  document.querySelectorAll('[data-timezone-combobox]').forEach(function (box) {
+    const input = box.querySelector('[data-timezone-input]');
+    const toggle = box.querySelector('[data-timezone-toggle]');
+    const list = box.querySelector('[data-timezone-list]');
+    const empty = box.querySelector('[data-timezone-empty]');
+    const options = [...box.querySelectorAll('[data-timezone-option]')];
+
+    function filterOptions() {
+      const query = input.value.toLowerCase().trim();
+      let visible = 0;
+      options.forEach(function (option) {
+        const matches = !query || option.dataset.timezoneOption.toLowerCase().includes(query);
+        option.classList.toggle('hidden', !matches);
+        if (matches) visible += 1;
+      });
+      empty.classList.toggle('hidden', visible !== 0);
+    }
+
+    function openList() {
+      filterOptions();
+      list.classList.remove('hidden');
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeList() {
+      list.classList.add('hidden');
+      input.setAttribute('aria-expanded', 'false');
+    }
+
+    input.addEventListener('focus', openList);
+    input.addEventListener('input', openList);
+    toggle.addEventListener('click', function () {
+      if (list.classList.contains('hidden')) {
+        openList();
+        input.focus();
+      } else {
+        closeList();
+      }
+    });
+    options.forEach(function (option) {
+      option.addEventListener('click', function () {
+        input.value = option.dataset.timezoneOption;
+        closeList();
+        input.focus();
+      });
+    });
+    document.addEventListener('click', function (event) {
+      if (!box.contains(event.target)) closeList();
+    });
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeList();
+    });
+  });
+});
+</script>
+{% endblock %}

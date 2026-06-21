@@ -1,0 +1,256 @@
+{% extends "layout.html" %}
+
+{% block title %}Jobs{% endblock %}
+{% block breadcrumb %}Home / Jobs{% endblock %}
+
+{% block content %}
+    <!-- Filters -->
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 mb-6">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div>
+                <label class="block text-xs font-medium text-slate-600">Name</label>
+                <input name="name" value="{{ name or '' }}"
+                       class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600">Category</label>
+                <input name="category" value="{{ category or '' }}" list="categoryList"
+                       class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <datalist id="categoryList">
+                    {% for c in (categories or []) %}
+                        <option value="{{ c }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600">Per page</label>
+                <select name="per_page"
+                        class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    {% set pp = request.args.get('per_page', '10') %}
+                    <option value="10" {% if pp=='10' %}selected{% endif %}>10</option>
+                    <option value="20" {% if pp=='20' %}selected{% endif %}>20</option>
+                    <option value="50" {% if pp=='50' %}selected{% endif %}>50</option>
+                </select>
+            </div>
+            <div class="md:col-span-2 flex gap-2">
+                <button class="rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2">Apply</button>
+                <a class="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium px-4 py-2"
+                   href="{{ url_for('jobs') }}">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    {% if current_user.role == 'admin' %}
+        <!-- Add Job -->
+        <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-slate-900">Add Job</h2>
+                <span class="text-xs text-slate-500">Cron: <span class="font-mono">*/5 * * * *</span></span>
+            </div>
+            <form method="post" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-slate-600">Name</label>
+                    <input name="name" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600">Category</label>
+                    <input name="category" list="categoryList"
+                           class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600">Server</label>
+                    <select id="server_select" name="server"
+                            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+                        <option value="default">default</option>
+                        {% for s in (servers or []) %}
+                            <option value="{{ s }}">{{ s }}</option>
+                        {% endfor %}
+                        <option value="__manual__">(manual input)</option>
+                    </select>
+                    <input id="server_manual" name="server_manual" placeholder="server-a / server-b / prod-01"
+                           class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm hidden" />
+                </div>
+
+
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-slate-600">Command</label>
+                    <input name="command" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600">Max</label>
+                    <input name="max_running" value="1" type="number" min="1" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div class="md:col-span-5">
+                    <label class="block text-xs font-medium text-slate-600">Cron</label>
+                    <input name="cron" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div class="md:col-span-1 flex items-end">
+                    <button class="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2">Add</button>
+                </div>
+            </form>
+
+            <script>
+              (function () {
+                const sel = document.getElementById('server_select');
+                const manual = document.getElementById('server_manual');
+                if (!sel || !manual) return;
+
+                function sync() {
+                  const isManual = sel.value === '__manual__';
+                  manual.classList.toggle('hidden', !isManual);
+                  if (!isManual) manual.value = '';
+                }
+
+                sel.addEventListener('change', sync);
+                sync();
+              })();
+            </script>
+        </div>
+    {% endif %}
+
+    <!-- Job List -->
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
+        <div class="px-4 py-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-900">Job List</h2>
+            <div class="text-xs text-slate-500">Page {{ pagination.page }} / {{ pagination.pages }}</div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="text-left font-medium px-4 py-2">ID</th>
+                    <th>Last Execute</th>
+                    <th class="text-left font-medium px-4 py-2">Status</th>
+                    <th class="text-left font-medium px-4 py-2">Name</th>
+                    <th class="text-left font-medium px-4 py-2">Category</th>
+                    <th class="text-left font-medium px-4 py-2">Server</th>
+                    <th class="text-left font-medium px-4 py-2">Cron</th>
+                    <th class="text-left font-medium px-4 py-2">Max</th>
+                    <th class="text-left font-medium px-4 py-2">Actions</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                {% for j in jobs %}
+                    <tr class="hover:bg-slate-50 {% if not j.is_active %}bg-slate-100 text-slate-400{% endif %}">
+                        <td class="px-4 py-2 text-slate-500">{{ j.id }}</td>
+                        <td>
+                            {% set dt = last_exec_map.get(j.id) %}
+                            {% if dt %}
+                                {{ format_local(dt) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% set st = (last_status_map.get(j.id) if last_status_map else '') %}
+                            {% if st %}
+                                {% set st_u = st.upper() %}
+                                <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold
+                                  {% if st_u == 'SUCCESS' %}bg-emerald-100 text-emerald-800
+                                  {% elif st_u == 'FAILED' %}bg-rose-100 text-rose-800
+                                  {% elif st_u == 'RUNNING' %}bg-indigo-100 text-indigo-800
+                                  {% elif st_u == 'QUEUED' %}bg-amber-100 text-amber-800
+                                  {% else %}bg-slate-100 text-slate-700{% endif %}">
+                                  {{ st_u }}
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2 font-medium">
+                            <span class="{% if not j.is_active %}text-slate-500{% else %}text-slate-900{% endif %}">
+                                {{ j.name }}
+                            </span>
+                            {% if not j.is_active %}
+                                <span class="ml-2 inline-flex items-center rounded-md bg-slate-300 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                                    INACTIVE
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2 text-slate-700">{{ j.category }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ j.server }}</td>
+                        <td class="px-4 py-2 font-mono text-xs text-slate-700">{{ j.cron }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ j.max_running }}</td>
+                        <td class="px-4 py-2">
+                            {% if current_user.role == 'admin' %}
+                                <a class="text-brand-700 hover:text-brand-900" href="{{ url_for('edit_job', job_id=j.id) }}">Edit</a>
+                                <span class="text-slate-300 mx-2">|</span>
+                            {% endif %}
+                            <a class="text-indigo-600 hover:text-indigo-800" href="{{ url_for('job_runs', job_id=j.id) }}" target="_blank">Detail</a>
+                            <span class="text-slate-300 mx-2">|</span>
+                            {% if current_user.role in ['admin', 'operator'] %}
+                                <button type="button"
+                                        id="runBtn-{{ j.id }}"
+                                        class="text-emerald-700 hover:text-emerald-900"
+                                        onclick="runNow({{ j.id }})">
+                                    Run Now
+                                </button>
+                            {% endif %}
+                            {% if current_user.role == 'admin' %}
+                                <span class="text-slate-300 mx-2">|</span>
+                                <form method="post" action="{{ url_for('delete_job', job_id=j.id) }}" class="inline">
+                                    <button class="text-rose-600 hover:text-rose-800" type="submit" onclick="return confirm('Delete job?')">Delete</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-4 py-3 bg-white flex items-center justify-between">
+            <div class="text-xs text-slate-500">Page {{ pagination.page }} / {{ pagination.pages }}</div>
+            <div class="flex gap-2">
+                {% if pagination.has_prev %}
+                    <a class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                       href="{{ url_for('jobs', page=pagination.prev_num, name=name, category=category, per_page=request.args.get('per_page', 10)) }}">Prev</a>
+                {% else %}
+                    <span class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-400">Prev</span>
+                {% endif %}
+
+                {% if pagination.has_next %}
+                    <a class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                       href="{{ url_for('jobs', page=pagination.next_num, name=name, category=category, per_page=request.args.get('per_page', 10)) }}">Next</a>
+                {% else %}
+                    <span class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-400">Next</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+<script>
+    async function runNow(jobId) {
+        const btn = document.getElementById(`runBtn-${jobId}`);
+        if (btn) {
+            if (btn.dataset.busy === "1") return;      // anti double click
+            btn.dataset.busy = "1";
+            btn.textContent = "Running...";
+            btn.classList.add("opacity-50");
+        }
+
+        try {
+            const resp = await fetch(`/jobs/${jobId}/run`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await resp.json().catch(() => ({}));
+
+            if (!resp.ok || !data.ok) {
+                alert(`Run Now failed: ${data.error || resp.statusText}`);
+                return;
+            }
+            alert(`Run Now success (run_id=${data.run_id || '-'})`);
+        } catch (e) {
+            alert(`Run Now error: ${e}`);
+        } finally {
+            if (btn) {
+                btn.dataset.busy = "0";
+                btn.textContent = "Run Now";
+                btn.classList.remove("opacity-50");
+            }
+        }
+    }
+</script>
+{% endblock %}

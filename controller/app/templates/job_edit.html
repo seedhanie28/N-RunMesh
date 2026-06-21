@@ -1,0 +1,94 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit Job{% endblock %}
+{% block breadcrumb %}Home / Jobs / Edit{% endblock %}
+
+{% block content %}
+    <div class="max-w-3xl">
+        <div class="bg-white rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
+            <div class="px-5 py-4 bg-brand-50 border-b border-slate-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">Edit Job</h2>
+                        <p class="text-xs text-slate-600 mt-1">Update job fields and save.</p>
+                    </div>
+                    <a href="{{ url_for('jobs') }}" class="text-sm text-slate-700 hover:text-slate-900">Back</a>
+                </div>
+            </div>
+
+            <form method="post" class="p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600">Name</label>
+                        <input name="name" value="{{ job.name }}" required
+                               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600">Category</label>
+                        <input name="category" value="{{ job.category }}" list="categoryList"
+                               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+                        <datalist id="categoryList">
+                          {% for c in (categories or []) %}
+                            <option value="{{ c }}"></option>
+                          {% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600">Server</label>
+                        <select name="server" id="server-select"
+                               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                            {% for server in servers %}
+                                <option value="{{ server }}" {% if job.server == server %}selected{% endif %}>{{ server }}</option>
+                            {% endfor %}
+                            <option value="__manual__" {% if job.server not in servers %}selected{% endif %}>Manual input</option>
+                        </select>
+                        <input type="text" name="server_manual" id="server-manual-input" placeholder="Enter server manually"
+                               value="{% if job.server not in servers %}{{ job.server }}{% endif %}"
+                               class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 {% if job.server in servers %}hidden{% endif %}" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600">Command</label>
+                        <input name="command" value="{{ job.command }}" required
+                               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600">Cron</label>
+                        <input name="cron" value="{{ job.cron }}" required
+                               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+                        <p class="text-[11px] text-slate-500 mt-1">Example: <span class="font-mono">0 4 * * *</span></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600">Max running</label>
+                        <input name="max_running" value="{{ job.max_running }}" type="number" min="1"
+                               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+                    </div>
+                    <div class="flex items-end">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="is_active" {% if job.is_active %}checked{% endif %} class="h-4 w-4" />
+                            Active
+                        </label>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 pt-2">
+                    <button class="rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold px-4 py-2">Save</button>
+                    <a href="{{ url_for('jobs') }}"
+                       class="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-4 py-2">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        const serverSelect = document.getElementById('server-select');
+        const serverManualInput = document.getElementById('server-manual-input');
+        serverSelect.addEventListener('change', function() {
+            if (this.value === '__manual__') {
+                serverManualInput.classList.remove('hidden');
+                serverManualInput.focus();
+            } else {
+                serverManualInput.classList.add('hidden');
+                serverManualInput.value = '';
+            }
+        });
+    </script>
+{% endblock %}

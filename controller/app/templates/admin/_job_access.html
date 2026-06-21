@@ -1,0 +1,38 @@
+<div class="rounded-2xl border border-slate-200 overflow-hidden">
+  <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+    <div><div class="text-sm font-semibold text-slate-800">Accessible jobs</div><div class="text-xs text-slate-500">Select a category or individual jobs.</div></div>
+    <input type="search" data-job-search placeholder="Search jobs..." class="w-56 rounded-lg border border-slate-300 px-3 py-2 text-xs">
+  </div>
+  <div class="max-h-80 overflow-y-auto divide-y divide-slate-100" data-job-tree>
+    {% for category, category_jobs in job_groups.items() %}
+      <div class="p-3" data-category-group>
+        <label class="flex items-center gap-2 font-semibold text-sm text-slate-800">
+          <input type="checkbox" data-category-toggle class="rounded border-slate-300 text-brand-600"><span>{{ category }}</span><span class="text-xs font-normal text-slate-400">({{ category_jobs|length }})</span>
+        </label>
+        <div class="mt-2 ml-6 grid grid-cols-1 md:grid-cols-2 gap-2">
+          {% for job in category_jobs %}
+            <label class="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 text-sm" data-job-item data-search-text="{{ (category ~ ' ' ~ job.name ~ ' ' ~ job.id)|lower }}">
+              <input type="checkbox" name="job_ids" value="{{ job.id }}" {% if selected_job_ids is defined and job.id in selected_job_ids %}checked{% endif %} data-job-checkbox class="mt-0.5 rounded border-slate-300 text-brand-600">
+              <span><span class="font-medium text-slate-700">{{ job.name }}</span><span class="ml-1 text-xs text-slate-400">#{{ job.id }}</span></span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}<div class="p-5 text-sm text-slate-500">No jobs are registered yet.</div>{% endfor %}
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('[data-category-group]').forEach(function(group) {
+    const toggle=group.querySelector('[data-category-toggle]'), jobs=[...group.querySelectorAll('[data-job-checkbox]')];
+    function sync(){const checked=jobs.filter(x=>x.checked).length;toggle.checked=jobs.length>0&&checked===jobs.length;toggle.indeterminate=checked>0&&checked<jobs.length;}
+    toggle.addEventListener('change',()=>{jobs.forEach(x=>x.checked=toggle.checked);sync();});jobs.forEach(x=>x.addEventListener('change',sync));sync();
+  });
+  document.querySelectorAll('[data-job-search]').forEach(function(input) {
+    input.addEventListener('input',function(){const term=input.value.toLowerCase().trim(),tree=input.closest('.rounded-2xl').querySelector('[data-job-tree]');
+      tree.querySelectorAll('[data-job-item]').forEach(item=>item.classList.toggle('hidden',term&&!item.dataset.searchText.includes(term)));
+      tree.querySelectorAll('[data-category-group]').forEach(group=>group.classList.toggle('hidden',![...group.querySelectorAll('[data-job-item]')].some(x=>!x.classList.contains('hidden'))));
+    });
+  });
+});
+</script>

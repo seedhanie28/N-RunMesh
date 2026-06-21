@@ -1,0 +1,21 @@
+[Unit]
+Description=ATPSS Cron Agent
+After=network.target
+
+[Service]
+Type=simple
+User=etl
+WorkingDirectory=/opt/nrunmesh-agent
+ExecStart=python agent/cron_agent.py
+Restart=always
+RestartSec=5
+
+Environment=CRON_AGENT_INTERVAL=15
+Environment=CRON_AGENT_LOG_LEVEL=INFO
+Environment=CRON_AGENT_PID_FILE=/tmp/cron_agent.pid
+
+# penting biar DB koneksi stabil
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,91 @@
+name: nrunmesh
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nrunmesh}
+      POSTGRES_USER: ${POSTGRES_USER:-nrunmesh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nrunmesh-change-me}
+    ports:
+      # Localhost-only by default. API-only agents never connect to PostgreSQL.
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - nrunmesh_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  controller:
+    image: nrunmesh-controller:latest
+    build:
+      context: ./controller
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-nrunmesh}
+      DB_USER: ${POSTGRES_USER:-nrunmesh}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-nrunmesh-change-me}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-key}
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+      NRUNMESH_ADMIN_USER: ${NRUNMESH_ADMIN_USER:-admin}
+      NRUNMESH_ADMIN_PASSWORD: ${NRUNMESH_ADMIN_PASSWORD:-admin-change-me}
+      NRUNMESH_ADMIN_NAME: ${NRUNMESH_ADMIN_NAME:-N-RunMesh Administrator}
+      CRON_AGENT_API_KEY: ${CRON_AGENT_API_KEY:-change-this-agent-key}
+      CRON_AGENT_HTTP_PORT: ${CRON_AGENT_HTTP_PORT:-8765}
+      CRON_AGENT_TTL: ${CRON_AGENT_TTL:-60}
+      DB_BOOTSTRAP_RETRIES: ${DB_BOOTSTRAP_RETRIES:-60}
+      DB_BOOTSTRAP_INTERVAL: ${DB_BOOTSTRAP_INTERVAL:-2}
+      BACKUP_ROOT: /backups
+      BACKUP_HOST_PATH: ${BACKUP_HOST_PATH:-./backups}
+    ports:
+      - "${CONTROLLER_BIND_HOST:-0.0.0.0}:${CONTROLLER_PORT:-3012}:3012"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - "${BACKUP_HOST_PATH:-./backups}:/backups"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://localhost:3012/health
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  backup-worker:
+    image: nrunmesh-controller:latest
+    command: python -m app.backup_worker
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-nrunmesh}
+      DB_USER: ${POSTGRES_USER:-nrunmesh}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-nrunmesh-change-me}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-key}
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+      DB_BOOTSTRAP_RETRIES: ${DB_BOOTSTRAP_RETRIES:-60}
+      DB_BOOTSTRAP_INTERVAL: ${DB_BOOTSTRAP_INTERVAL:-2}
+      BACKUP_ROOT: /backups
+      BACKUP_HOST_PATH: ${BACKUP_HOST_PATH:-./backups}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      controller:
+        condition: service_healthy
+    volumes:
+      - "${BACKUP_HOST_PATH:-./backups}:/backups"
+    restart: unless-stopped
+
+volumes:
+  nrunmesh_postgres:

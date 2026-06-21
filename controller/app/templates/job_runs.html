@@ -1,0 +1,229 @@
+{% extends "layout.html" %}
+{% block title %}Job Runs{% endblock %}
+{% block breadcrumb %}Jobs / {{ job.name }}{% endblock %}
+
+{% block content %}
+  <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 mb-4">
+    <div class="flex justify-between items-center">
+      <div>
+        <h2 class="text-sm font-semibold">{{ job.name }}</h2>
+        <p class="text-xs text-slate-500">
+          Server: {{ job.server }}
+          {% if agents_map and agents_map.get(job.server) and agents_map.get(job.server).pid %}
+            | Agent PID: <span class="font-mono">{{ agents_map.get(job.server).pid }}</span>
+          {% endif %}
+          | Cron: <span class="font-mono">{{ job.cron }}</span>
+        </p>
+        <div class="mt-3 space-y-3">
+
+          <!-- DEFAULT COMMAND -->
+          <div>
+            <label class="block text-[11px] text-slate-500 mb-1">
+              Default command (job.command)
+            </label>
+            <pre class="w-full rounded-lg bg-slate-900 text-green-400 px-3 py-2 text-xs font-mono overflow-x-auto">
+{{ job.command }}
+            </pre>
+          </div>
+
+          <!-- RUN ARGS -->
+          <div>
+            <label for="runArgs" class="block text-[11px] text-slate-500 mb-1">
+              Run args (optional) — sent to agent as JSON field <span class="font-mono">args</span>
+            </label>
+            <textarea id="runArgs"
+                      rows="3"
+                      class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                      placeholder="Example: 2025-12-01  |  or JSON array: [&quot;2025-12-01&quot;,&quot;--force&quot;]"></textarea>
+            <div class="text-[11px] text-slate-400 mt-1">
+              Leave empty to run the default command above.
+            </div>
+          </div>
+
+        </div>
+      </div>
+      {% if current_user.role == 'admin' %}
+        <button id="runNowBtn" type="button"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm">
+          Run Now
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- RUN LIST -->
+    <div class="bg-white rounded-2xl ring-1 ring-slate-200 lg:col-span-2">
+      <div class="px-4 py-2 border-b text-sm font-medium">Run History</div>
+      <div class="divide-y max-h-[420px] overflow-y-auto">
+        {% for r in runs %}
+          <div class="px-4 py-2 text-sm cursor-pointer hover:bg-slate-50" onclick="loadLog({{ r.id }})">
+            <div class="grid grid-cols-4 gap-2 items-center">
+
+              <!-- START -->
+              <div class="text-slate-700">
+                <div class="text-[11px] text-slate-400">Start</div>
+                <div class="font-mono">
+                  {{ to_local(r.start_time).strftime('%Y-%m-%d %H:%M:%S') if r.start_time else '-' }}
+                </div>
+              </div>
+
+              <!-- END -->
+              <div class="text-slate-700">
+                <div class="text-[11px] text-slate-400">End</div>
+                <div class="font-mono">
+                  {{ to_local(r.end_time).strftime('%Y-%m-%d %H:%M:%S') if r.end_time else '-' }}
+                </div>
+              </div>
+
+              <!-- DURATION -->
+              <div class="text-slate-700">
+                <div class="text-[11px] text-slate-400">Duration</div>
+                <div class="font-mono">
+                  {{ fmt_runtime(r.start_time, r.end_time) if r.start_time else '-' }}
+                </div>
+              </div>
+
+              <!-- STATUS + PID -->
+              <div class="flex items-center justify-end gap-2">
+                <span class="text-slate-400 text-xs">PID:</span>
+                <span class="font-mono text-slate-300 text-xs">{{ r.process_pid or '-' }}</span>
+
+                <span class="text-xs font-semibold
+                  {% if r.status=='SUCCESS' %}text-emerald-600
+                  {% elif r.status=='FAILED' %}text-rose-600
+                  {% else %}text-amber-600{% endif %}">
+                  {{ r.status }}
+                </span>
+
+                {% if current_user.role == 'admin' and r.status == 'RUNNING' %}
+                  <button type="button"
+                          class="text-amber-600 hover:text-amber-400 text-xs"
+                          onclick="event.stopPropagation(); sendSignal({{ r.id }}, 'TERM');">
+                    TERM
+                  </button>
+                  <button type="button"
+                          class="text-rose-600 hover:text-rose-400 text-xs"
+                          onclick="event.stopPropagation(); sendSignal({{ r.id }}, 'KILL');">
+                    KILL
+                  </button>
+                {% endif %}
+              </div>
+
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- LOG VIEW -->
+    <div id="logBox" class="bg-black text-green-400 rounded-2xl p-3 font-mono text-xs overflow-auto">
+      Select a run to view logs... (RUNNING will auto-refresh)
+    </div>
+  </div>
+
+  <script>
+    let currentRunId = null;
+    let logTimer = null;
+
+    async function loadLog(runId) {
+      currentRunId = runId;
+      await fetchLogOnce(runId);
+    }
+
+    async function fetchLogOnce(runId) {
+      try {
+        const res = await fetch(`/runs/${runId}/log_text`, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        document.getElementById('logBox').textContent = data.content || '(empty log)';
+
+        // if running, keep polling
+        const status = (data.status || '').toUpperCase();
+        if (status === 'RUNNING') {
+          if (!logTimer) {
+            logTimer = setInterval(() => {
+              if (currentRunId) fetchLogOnce(currentRunId);
+            }, 2000);
+          }
+        } else {
+          if (logTimer) {
+            clearInterval(logTimer);
+            logTimer = null;
+          }
+        }
+
+      } catch (e) {
+        document.getElementById('logBox').textContent = `Failed to load log: ${e}`;
+      }
+    }
+
+    async function runNow(jobId) {
+      const btn = document.getElementById('runNowBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Starting...';
+      }
+
+      try {
+        const res = await fetch(`/jobs/${jobId}/run`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            args: (document.getElementById('runArgs')?.value || '').trim()
+          })
+        });
+
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(`HTTP ${res.status} ${t}`);
+        }
+
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Unknown error');
+
+        if (btn) btn.textContent = 'Started';
+        const ta = document.getElementById('runArgs');
+        if (ta) ta.value = '';
+        setTimeout(() => location.reload(), 800);
+      } catch (e) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Run Now';
+        }
+        alert(`Run Now failed: ${e}`);
+      }
+    }
+
+    (function () {
+      const btn = document.getElementById('runNowBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        runNow({{ job.id }});
+      });
+    })();
+
+    async function sendSignal(runId, sig) {
+      try {
+        const resp = await fetch(`/runs/${runId}/signal`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({ signal: sig })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.ok === false) {
+          alert(`Signal failed: ${data.error || resp.statusText}`);
+          return;
+        }
+        alert(`Signal ${sig} sent (pid=${data.pid || '-'})`);
+      } catch (e) {
+        alert(`Signal error: ${e}`);
+      }
+    }
+  </script>
+{% endblock %}

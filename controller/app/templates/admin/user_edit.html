@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block title %}Edit User · N-RunMesh{% endblock %}
+{% block breadcrumb %}Administration / Users / {{ user.u_user }}{% endblock %}
+{% block content %}
+<section class="max-w-4xl bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+  <div class="flex justify-between"><div><h2 class="text-lg font-semibold">Edit {{ user.u_user }}</h2><p class="text-sm text-slate-500">Update role, password, and job access.</p></div><a href="{{ url_for('admin.users') }}" class="text-sm">Back</a></div>
+  <form method="post" class="space-y-5 mt-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <input name="display_name" value="{{ user.u_name or '' }}" required class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+      <select name="role" data-role-select class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm bg-white">{% for role in ['viewer','operator','admin'] %}<option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role|capitalize }}</option>{% endfor %}</select>
+      <input name="password" type="password" minlength="8" placeholder="New password (optional)" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+    </div>
+    <div data-access-panel>{% include "admin/_job_access.html" %}</div>
+    <button class="rounded-xl bg-brand-600 text-white px-4 py-2.5 text-sm font-semibold">Save changes</button>
+  </form>
+</section>
+<script>document.addEventListener('DOMContentLoaded',()=>{const r=document.querySelector('[data-role-select]'),p=document.querySelector('[data-access-panel]');function s(){p.classList.toggle('hidden',r.value==='admin')}r.addEventListener('change',s);s();});</script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block title %}Users & Access · N-RunMesh{% endblock %}
+{% block breadcrumb %}Administration / Users & Access{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 2xl:grid-cols-5 gap-6">
+  <section class="2xl:col-span-3 bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-200"><h2 class="font-semibold text-slate-900">Registered users</h2></div>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm">
+      <thead class="bg-slate-50 text-slate-600"><tr><th class="text-left px-4 py-3">User</th><th class="text-left px-4 py-3">Role</th><th class="text-left px-4 py-3">Job access</th><th class="text-right px-4 py-3">Actions</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">{% for user in users %}<tr>
+        <td class="px-4 py-3"><div class="font-medium text-slate-900">{{ user.u_name or user.u_user }}</div><div class="text-xs text-slate-500">{{ user.u_user }}</div></td>
+        <td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold capitalize">{{ user.role }}</span></td>
+        <td class="px-4 py-3 text-slate-600">{% if user.role == 'admin' %}All jobs{% else %}{{ user.allowed_job_ids()|length }} assigned{% endif %}</td>
+        <td class="px-4 py-3 text-right whitespace-nowrap"><a href="{{ url_for('admin.edit_user', username=user.u_user) }}" class="text-brand-700">Edit</a>{% if user.u_user != current_user.u_user %}<form method="post" action="{{ url_for('admin.delete_user', username=user.u_user) }}" class="inline ml-3" onsubmit="return confirm('Delete this user?')"><button class="text-rose-600">Delete</button></form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="2xl:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+    <h2 class="font-semibold text-slate-900">Register new user</h2>
+    <form method="post" class="space-y-4 mt-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input name="username" required placeholder="Username" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+        <input name="display_name" required placeholder="Display name" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+        <input name="password" type="password" minlength="8" required placeholder="Initial password" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+        <select name="role" data-role-select class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm bg-white"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Administrator</option></select>
+      </div>
+      <div data-access-panel>{% include "admin/_job_access.html" %}</div>
+      <button class="rounded-xl bg-brand-600 text-white px-4 py-2.5 text-sm font-semibold">Create user</button>
+    </form>
+  </section>
+</div>
+<script>document.addEventListener('DOMContentLoaded',()=>{const r=document.querySelector('[data-role-select]'),p=document.querySelector('[data-access-panel]');function s(){p.classList.toggle('hidden',r.value==='admin')}r.addEventListener('change',s);s();});</script>
+{% endblock %}

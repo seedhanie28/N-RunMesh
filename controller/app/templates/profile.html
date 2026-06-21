@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}My Profile · N-RunMesh{% endblock %}
+{% block breadcrumb %}Account / My Profile{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-5xl">
+  <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+    <h2 class="text-lg font-semibold text-slate-900">Profile</h2>
+    <p class="text-sm text-slate-500 mt-1">Update the name shown in N-RunMesh.</p>
+    <form method="post" class="space-y-4 mt-6">
+      <input type="hidden" name="action" value="profile">
+      <div><label class="block text-xs font-medium text-slate-600">Username</label><input value="{{ current_user.u_user }}" disabled class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm"></div>
+      <div><label class="block text-xs font-medium text-slate-600">Display name</label><input name="display_name" value="{{ current_user.u_name or '' }}" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"></div>
+      <div><label class="block text-xs font-medium text-slate-600">Role</label><input value="{{ current_user.role }}" disabled class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm capitalize"></div>
+      <button class="rounded-xl bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 text-sm font-semibold">Save profile</button>
+    </form>
+  </section>
+  <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+    <h2 class="text-lg font-semibold text-slate-900">Change password</h2>
+    <p class="text-sm text-slate-500 mt-1">Use at least eight characters.</p>
+    <form method="post" class="space-y-4 mt-6">
+      <input type="hidden" name="action" value="password">
+      <input name="current_password" type="password" placeholder="Current password" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+      <input name="new_password" type="password" placeholder="New password" minlength="8" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+      <input name="confirm_password" type="password" placeholder="Confirm new password" minlength="8" required class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm">
+      <button class="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 text-sm font-semibold">Change password</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends "layout.html" %}
+
+{% block title %}History{% endblock %}
+{% block breadcrumb %}Home / History{% endblock %}
+
+{% block content %}
+{% if etl_stats is defined %}
+<div class="bg-white rounded-3xl shadow-sm ring-1 ring-slate-200 p-5 mb-4">
+  <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+    <div>
+      <div class="text-base font-semibold text-slate-900">ETL Stats</div>
+      <div class="text-xs text-slate-500 mt-0.5">Quick summary (Today / MTD / YTD)</div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+      <div class="rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Total Jobs</div>
+        <div class="text-2xl font-extrabold text-slate-900 mt-0.5">{{ etl_stats.total_jobs }}</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Total Category</div>
+        <div class="text-2xl font-extrabold text-slate-900 mt-0.5">{{ etl_stats.total_category }}</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Total Server</div>
+        <div class="text-2xl font-extrabold text-slate-900 mt-0.5">{{ etl_stats.total_server }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# Pre-calc rates safely #}
+  {% set t_runs = (etl_stats.today.total_runs or 0) %}
+  {% set t_ok = (etl_stats.today.success_cnt or 0) %}
+  {% set t_fail = (etl_stats.today.failed_cnt or 0) %}
+  {% set t_rate = ((t_ok * 100.0) / t_runs) if t_runs else 0 %}
+
+  {% set m_runs = (etl_stats.mtd.total_runs or 0) %}
+  {% set m_ok = (etl_stats.mtd.success_cnt or 0) %}
+  {% set m_fail = (etl_stats.mtd.failed_cnt or 0) %}
+  {% set m_rate = ((m_ok * 100.0) / m_runs) if m_runs else 0 %}
+
+  {% set y_runs = (etl_stats.ytd.total_runs or 0) %}
+  {% set y_ok = (etl_stats.ytd.success_cnt or 0) %}
+  {% set y_fail = (etl_stats.ytd.failed_cnt or 0) %}
+  {% set y_rate = ((y_ok * 100.0) / y_runs) if y_runs else 0 %}
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold text-slate-900">Today</div>
+        <div class="text-xs text-slate-500">runs: {{ t_runs }}</div>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden mt-3">
+        <div class="h-full bg-emerald-500" style="width: {{ '%.2f'|format(t_rate) }}%"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
+        <div>
+          <div class="text-xs text-slate-500">Completed</div>
+          <div class="font-semibold text-slate-900">{{ t_ok }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Failed</div>
+          <div class="font-semibold text-slate-900">{{ t_fail }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Success Rate</div>
+          <div class="font-semibold text-slate-900">{{ '%.2f'|format(t_rate) }}%</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Avg Duration</div>
+          <div class="font-semibold text-slate-900">{{ '%.2f'|format(etl_stats.today.avg_sec or 0) }} sec</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold text-slate-900">MTD</div>
+        <div class="text-xs text-slate-500">runs: {{ m_runs }}</div>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden mt-3">
+        <div class="h-full bg-emerald-500" style="width: {{ '%.2f'|format(m_rate) }}%"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
+        <div>
+          <div class="text-xs text-slate-500">Completed</div>
+          <div class="font-semibold text-slate-900">{{ m_ok }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Failed</div>
+          <div class="font-semibold text-slate-900">{{ m_fail }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Success Rate</div>
+          <div class="font-semibold text-slate-900">{{ '%.2f'|format(m_rate) }}%</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Avg Duration</div>
+          <div class="font-semibold text-slate-900">{{ '%.2f'|format(etl_stats.mtd.avg_sec or 0) }} sec</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold text-slate-900">YTD</div>
+        <div class="text-xs text-slate-500">runs: {{ y_runs }}</div>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden mt-3">
+        <div class="h-full bg-emerald-500" style="width: {{ '%.2f'|format(y_rate) }}%"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
+        <div>
+          <div class="text-xs text-slate-500">Completed</div>
+          <div class="font-semibold text-slate-900">{{ y_ok }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Failed</div>
+          <div class="font-semibold text-slate-900">{{ y_fail }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Success Rate</div>
+          <div class="font-semibold text-slate-900">{{ '%.2f'|format(y_rate) }}%</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">Avg Duration</div>
+          <div class="font-semibold text-slate-900">{{ '%.2f'|format(etl_stats.ytd.avg_sec or 0) }} sec</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+    <div class="space-y-4">
+
+        <div class="bg-white rounded-3xl shadow-sm ring-1 ring-slate-200 p-4">
+            <form method="get" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600">Job ID</label>
+                    <input name="job_id" value="{{ job_id or '' }}" placeholder="e.g. 12"
+                           class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-600">Status</label>
+                    <select name="status"
+                            class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="" {% if not status %}selected{% endif %}>All</option>
+                        <option value="SUCCESS" {% if status=='SUCCESS' %}selected{% endif %}>SUCCESS</option>
+                        <option value="FAILED" {% if status=='FAILED' %}selected{% endif %}>FAILED</option>
+                        <option value="DONE" {% if status=='DONE' %}selected{% endif %}>DONE</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-600">Per page</label>
+                    {% set pp = request.args.get('per_page', '50') %}
+                    <select name="per_page"
+                            class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="20" {% if pp=='20' %}selected{% endif %}>20</option>
+                        <option value="50" {% if pp=='50' %}selected{% endif %}>50</option>
+                        <option value="100" {% if pp=='100' %}selected{% endif %}>100</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-2 flex gap-2">
+                    <button class="rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2">Apply</button>
+                    <a class="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-semibold px-4 py-2" href="{{ url_for('history') }}">Reset</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
+            <div class="px-5 py-4 bg-brand-50 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">Completed Runs</h2>
+                    <p class="text-xs text-slate-600 mt-1">Stored in DB table <span class="font-mono">log_history</span> (last ~2000 lines)</p>
+                </div>
+                <div class="text-xs text-slate-600">Page {{ pagination.page }} / {{ pagination.pages }}</div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-600">
+                    <tr>
+                        <th class="text-left font-medium px-5 py-2">Run ID</th>
+                        <th class="text-left font-medium px-5 py-2">Job</th>
+                        <th class="text-left font-medium px-5 py-2">Category</th>
+                        <th class="text-left font-medium px-5 py-2">Server</th>
+                        <th class="text-left font-medium px-5 py-2">Job ID</th>
+                        <th class="text-left font-medium px-5 py-2">Status</th>
+                        <th class="text-left font-medium px-5 py-2">Start</th>
+                        <th class="text-left font-medium px-5 py-2">End</th>
+                        <th class="text-left font-medium px-5 py-2">Runtime</th>
+                        <th class="text-left font-medium px-5 py-2">Log</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                    {% for r, job_name, category, server in runs %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-5 py-2 text-slate-500">{{ r.run_id }}</td>
+                            <td class="px-5 py-2 text-slate-700">{{ job_name }}</td>
+                            <td class="px-5 py-2 text-slate-600">{{ category }}</td>
+                            <td class="px-5 py-2 text-slate-700">{{ server or '-' }}</td>
+                            <td class="px-5 py-2 text-slate-700">{{ r.job_id }}</td>
+                            <td class="px-5 py-2">
+                                {% if r.status == 'SUCCESS' %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium">SUCCESS</span>
+                                {% elif r.status == 'FAILED' %}
+                                    <span class="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium">FAILED</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-medium">{{ r.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-2 text-slate-700">{{ to_local(r.start_time) if r.start_time else "-" }}</td>
+                            <td class="px-5 py-2 text-slate-700">{{ to_local(r.end_time) if r.end_time else "-" }}</td>
+                            <td class="px-5 py-2 text-slate-700">{{ fmt_runtime(r.start_time, r.end_time) }}</td>
+                            <td class="px-5 py-2">
+                                <a class="text-brand-700 hover:text-brand-900" href="{{ url_for('view_log', run_id=r.run_id) }}" target="_blank">Open</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="px-5 py-4 flex items-center justify-between">
+                <div class="text-xs text-slate-500">Total pages: {{ pagination.pages }}</div>
+                <div class="flex gap-2">
+                    {% if pagination.has_prev %}
+                        <a class="rounded-xl border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                           href="{{ url_for('history', page=pagination.prev_num, job_id=job_id, status=status, per_page=request.args.get('per_page', 50)) }}">Prev</a>
+                    {% else %}
+                        <span class="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-400">Prev</span>
+                    {% endif %}
+
+                    {% if pagination.has_next %}
+                        <a class="rounded-xl border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                           href="{{ url_for('history', page=pagination.next_num, job_id=job_id, status=status, per_page=request.args.get('per_page', 50)) }}">Next</a>
+                    {% else %}
+                        <span class="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-400">Next</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+{% endblock %}
